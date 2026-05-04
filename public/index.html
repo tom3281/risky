@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0a0a14">
+<title>RISKY DICE</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    font-family: -apple-system, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+    background:
+      radial-gradient(ellipse at top, #2a1230 0%, transparent 60%),
+      radial-gradient(ellipse at bottom, #1a0512 0%, transparent 60%),
+      #06040a;
+    color: #fff; overflow-x: hidden;
+    user-select: none; -webkit-user-select: none;
+  }
+  .app { min-height: 100dvh; display: flex; flex-direction: column; padding: 20px; max-width: 480px; margin: 0 auto; width: 100%; }
+
+  /* Title */
+  .title { text-align: center; padding: 24px 20px 14px; }
+  .title h1 {
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: clamp(34px, 11vw, 56px);
+    margin: 0; letter-spacing: -0.04em; font-weight: 900;
+    background: linear-gradient(180deg, #ff5e6e 0%, #6b0810 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    text-shadow: 0 0 30px rgba(255,80,100,0.25);
+  }
+  .title .subtitle {
+    font-size: 11px; letter-spacing: 6px;
+    color: rgba(255,255,255,0.45); margin-top: 4px;
+  }
+
+  /* Screen */
+  .screen { display: none; flex: 1; flex-direction: column; }
+  .screen.active { display: flex; }
+
+  /* ---- Stake selection ---- */
+  .stake-prompt {
+    text-align: center; margin: 18px 0 14px;
+    font-size: 13px; letter-spacing: 5px; color: rgba(255,215,110,0.85);
+  }
+  .stake-grid { display: flex; flex-direction: column; gap: 10px; }
+  .stake-btn {
+    width: 100%;
+    padding: 20px 22px;
+    border: 1px solid rgba(255,80,100,0.3);
+    border-radius: 14px;
+    background: linear-gradient(180deg, rgba(255,80,100,0.10), rgba(255,80,100,0.02));
+    color: #fff;
+    font-family: inherit; font-size: 22px; font-weight: 800; letter-spacing: 6px;
+    cursor: pointer; transition: all .15s;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .stake-btn:hover {
+    border-color: #ff5e6e;
+    background: linear-gradient(180deg, rgba(255,80,100,0.20), rgba(255,80,100,0.06));
+  }
+  .stake-btn:active { transform: translateY(2px); }
+  .stake-btn .label-num {
+    font-family: 'Inter', system-ui;
+    font-size: 30px; font-weight: 900; letter-spacing: -0.02em;
+    color: #ff5e6e;
+  }
+  .stake-btn .label-cup { font-size: 14px; letter-spacing: 4px; color: rgba(255,255,255,0.7); }
+  .stake-btn .label-risk {
+    font-size: 11px; letter-spacing: 1px; color: rgba(255,255,255,0.45);
+  }
+
+  .rule-hint {
+    text-align: center; margin-top: 20px;
+    font-size: 11px; letter-spacing: 2px; color: rgba(255,255,255,0.45);
+    line-height: 1.7;
+  }
+  .rule-hint .red { color: #ff8088; font-weight: 700; }
+
+  /* ---- Roll screen ---- */
+  .roll-screen { align-items: center; justify-content: center; }
+  .stake-display {
+    text-align: center; margin: 6px 0 4px;
+    font-size: 11px; letter-spacing: 5px; color: rgba(255,255,255,0.5);
+  }
+  .stake-display .amount {
+    display: block; margin-top: 2px;
+    font-family: 'Inter', system-ui;
+    font-size: 30px; font-weight: 900; letter-spacing: -0.02em;
+    color: #ff5e6e; text-shadow: 0 0 16px rgba(255,80,100,0.45);
+  }
+  .stake-display .amount span.cup-jp {
+    font-family: -apple-system, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+    font-size: 18px; margin-left: 4px; letter-spacing: 2px;
+  }
+
+  /* 3D dice canvas stage — square, with a subtle red aura behind so the
+     dark icosahedron has visual presence against the dark UI. */
+  .dice-stage {
+    width: min(86vw, 320px); aspect-ratio: 1;
+    margin: 18px auto 22px;
+    position: relative;
+    background:
+      radial-gradient(ellipse at center, rgba(255,80,100,0.10) 0%, transparent 62%),
+      radial-gradient(ellipse at center, rgba(120,80,180,0.06) 0%, transparent 70%);
+  }
+  .dice-stage canvas {
+    width: 100% !important;
+    height: 100% !important;
+    display: block;
+  }
+
+  /* Roll button */
+  .btn {
+    width: 100%;
+    padding: 22px;
+    border: none; border-radius: 14px;
+    font-family: inherit;
+    font-size: 18px; font-weight: 900; letter-spacing: 6px;
+    cursor: pointer; transition: transform .1s;
+  }
+  .btn:active { transform: translateY(2px); }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-danger {
+    background: linear-gradient(180deg, #ff5e6e 0%, #8b0000 100%);
+    color: #fff;
+    box-shadow: 0 8px 22px rgba(196,30,30,0.4);
+  }
+  .btn-ghost {
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.2);
+    color: rgba(255,255,255,0.85);
+    letter-spacing: 4px;
+    font-size: 14px;
+    padding: 14px;
+  }
+  .btn + .btn { margin-top: 10px; }
+
+  /* Result */
+  .result-screen { align-items: center; justify-content: center; text-align: center; padding: 24px; }
+  .result-label {
+    font-size: 11px; letter-spacing: 6px; color: rgba(255,255,255,0.5);
+  }
+  .result-main {
+    font-family: 'Inter', system-ui;
+    font-size: clamp(56px, 18vw, 120px);
+    font-weight: 900; line-height: 1;
+    letter-spacing: -0.05em;
+    margin: 14px 0 18px;
+  }
+  .result-main.drink {
+    background: linear-gradient(180deg, #ff5e6e 0%, #8b0000 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    text-shadow: 0 0 40px rgba(255,80,100,0.4);
+    animation: shake 0.45s ease-in-out 2;
+  }
+  .result-main.safe {
+    background: linear-gradient(180deg, #6effa0 0%, #1a8c4d 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    text-shadow: 0 0 40px rgba(110,255,160,0.3);
+  }
+  .result-jp {
+    font-family: -apple-system, "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+    font-size: 18px; font-weight: 800; letter-spacing: 4px;
+    margin-top: -8px; margin-bottom: 24px;
+  }
+  .result-jp.drink { color: #ff8088; }
+  .result-jp.safe  { color: #8be0a4; }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-6px); }
+    75% { transform: translateX(6px); }
+  }
+  .result-detail {
+    font-size: 13px; color: rgba(255,255,255,0.55);
+    letter-spacing: 2px; margin-bottom: 28px;
+    line-height: 1.6;
+  }
+  .result-detail b { color: #ffd76e; }
+
+  .version-tag {
+    position: fixed; bottom: 6px; right: 8px;
+    font-family: 'Inter', system-ui, monospace;
+    font-size: 10px; letter-spacing: 1px;
+    color: rgba(255,255,255,0.3);
+    pointer-events: none;
+    z-index: 50;
+  }
+
+  /* Drink-flash overlay (red flash on a hit) */
+  .flash {
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse at center, rgba(255,40,60,0.55) 0%, rgba(255,40,60,0) 70%);
+    pointer-events: none; opacity: 0;
+    z-index: 40;
+  }
+  .flash.fire { animation: flashFire 0.7s ease-out; }
+  @keyframes flashFire {
+    0%   { opacity: 0; }
+    20%  { opacity: 1; }
+    100% { opacity: 0; }
+  }
+</style>
+
+<!-- Three.js as ES module via importmap -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js"
+  }
+}
+</script>
+</head>
+<body>
+<div class="app">
+  <div class="title">
+    <h1>RISKY DICE</h1>
+    <div class="subtitle">D20 · DRINK OR SAFE</div>
+  </div>
+
+  <!-- ===== Stake selection ===== -->
+  <div class="screen active" id="stakeScreen">
+    <div class="stake-prompt">何杯 賭ける？</div>
+    <div class="stake-grid">
+      <button class="stake-btn" data-stake="1">
+        <span><span class="label-num">1</span> <span class="label-cup">杯</span></span>
+        <span class="label-risk">小ジャブ</span>
+      </button>
+      <button class="stake-btn" data-stake="2">
+        <span><span class="label-num">2</span> <span class="label-cup">杯</span></span>
+        <span class="label-risk">そこそこ</span>
+      </button>
+      <button class="stake-btn" data-stake="3">
+        <span><span class="label-num">3</span> <span class="label-cup">杯</span></span>
+        <span class="label-risk">本気の賭け</span>
+      </button>
+      <button class="stake-btn" data-stake="4">
+        <span><span class="label-num">4</span> <span class="label-cup">杯</span></span>
+        <span class="label-risk">かなり危険</span>
+      </button>
+      <button class="stake-btn" data-stake="5">
+        <span><span class="label-num">5</span> <span class="label-cup">杯</span></span>
+        <span class="label-risk">RISKY DICE</span>
+      </button>
+    </div>
+    <div class="rule-hint">
+      🎲 20面体で <span class="red">大凶</span> が出たら 賭けたぶん飲む<br>
+      残り19面は <span style="color:#ffd76e;font-weight:700">大吉</span> ＝ セーフ（被弾確率 1/20）
+    </div>
+  </div>
+
+  <!-- ===== Roll ===== -->
+  <div class="screen roll-screen" id="rollScreen">
+    <div class="stake-display">
+      STAKE
+      <span class="amount" id="stakeAmount">- <span class="cup-jp">杯</span></span>
+    </div>
+    <div class="dice-stage" id="diceStage"></div>
+    <button class="btn btn-danger" id="rollBtn">ROLL</button>
+    <button class="btn btn-ghost" id="backBtn">賭け直す</button>
+  </div>
+
+  <!-- ===== Result ===== -->
+  <div class="screen result-screen" id="resultScreen">
+    <div class="result-label">RESULT</div>
+    <div class="result-main" id="resultMain">-</div>
+    <div class="result-jp" id="resultJp">-</div>
+    <div class="result-detail" id="resultDetail">-</div>
+    <button class="btn btn-danger" id="againBtn">もう一度 振る</button>
+    <button class="btn btn-ghost" id="changeStakeBtn">賭け額を変える</button>
+  </div>
+</div>
+
+<div class="flash" id="flash"></div>
+<div class="version-tag" id="versionTag"></div>
+
+<script type="module">
+"use strict";
+import * as THREE from 'three';
+
+const APP_VERSION = "v0.5.2";
+document.getElementById("versionTag").textContent = APP_VERSION;
+
+// ===== Game state =====
+let stake = 0;
+
+function $(id) { return document.getElementById(id); }
+function showScreen(name) {
+  document.querySelectorAll(".screen").forEach(el => el.classList.remove("active"));
+  $(name + "Screen").classList.add("active");
+}
+
+// ===========================================================
+// Three.js icosahedron (D20) on a felt plane
+// ===========================================================
+const HIT_FACE = 7; // arbitrary face index — only this one is the "drink" face
+const DICE_RADIUS = 1.25;
+// Inradius of an icosahedron of circumradius R: R * sqrt(3)*(3+sqrt(5))/12 ≈ R*0.7558
+// = the distance from dice center to a face. So when a face sits flat on y=0,
+// the dice center is at this Y.
+const Y_GROUND = DICE_RADIUS * 0.7558;
+
+const stage = $("diceStage");
+
+const scene = new THREE.Scene();
+
+// Camera high above the felt — ~63° tilt below horizontal, so it reads as
+// "looking down on the dice". Pulled back enough that the dice (radius 1.25)
+// stays inside the frustum at peak height + lateral spread + bounce.
+const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 100);
+camera.position.set(0, 6.5, 3.0);
+camera.lookAt(0, 0.5, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.setClearColor(0x000000, 0);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+stage.appendChild(renderer.domElement);
+
+// ---- Lighting (3-point + accent for hit-face glow pickup) ----
+scene.add(new THREE.AmbientLight(0x2a2436, 0.55));
+
+const keyLight = new THREE.DirectionalLight(0xfff0d8, 2.4);
+keyLight.position.set(2.5, 5, 3);
+keyLight.castShadow = true;
+keyLight.shadow.mapSize.set(1024, 1024);
+keyLight.shadow.camera.near = 0.5;
+keyLight.shadow.camera.far = 14;
+keyLight.shadow.camera.left = -3;
+keyLight.shadow.camera.right = 3;
+keyLight.shadow.camera.top = 3;
+keyLight.shadow.camera.bottom = -3;
+keyLight.shadow.radius = 4;
+keyLight.shadow.bias = -0.0005;
+scene.add(keyLight);
+
+const rimLight = new THREE.DirectionalLight(0xff4060, 1.0);
+rimLight.position.set(-3, 1, -2);
+scene.add(rimLight);
+
+const fillLight = new THREE.PointLight(0x9070e0, 1.4, 14);
+fillLight.position.set(-2.2, 2.4, 4);
+scene.add(fillLight);
+
+// Hot accent that picks up red so the hit face glows when up
+const accent = new THREE.PointLight(0xff2030, 0.7, 8);
+accent.position.set(0, 0.6, 3);
+scene.add(accent);
+
+// ---- Ground plane (the felt table) ----
+{
+  // Soft radial gradient texture so the plane fades into the dark scene
+  // background instead of having a hard edge.
+  const c = document.createElement("canvas");
+  c.width = c.height = 512;
+  const cx = c.getContext("2d");
+  const g = cx.createRadialGradient(256, 256, 60, 256, 256, 256);
+  g.addColorStop(0,    "rgba(28, 18, 38, 1)");
+  g.addColorStop(0.55, "rgba(20, 14, 28, 0.85)");
+  g.addColorStop(1,    "rgba(10, 6, 16, 0)");
+  cx.fillStyle = g;
+  cx.fillRect(0, 0, 512, 512);
+  const planeTex = new THREE.CanvasTexture(c);
+  planeTex.colorSpace = THREE.SRGBColorSpace;
+
+  const planeGeo = new THREE.CircleGeometry(3.6, 64);
+  const planeMat = new THREE.MeshStandardMaterial({
+    map: planeTex,
+    transparent: true,
+    metalness: 0.0,
+    roughness: 0.95,
+  });
+  const plane = new THREE.Mesh(planeGeo, planeMat);
+  plane.rotation.x = -Math.PI / 2;
+  plane.position.y = 0;
+  plane.receiveShadow = true;
+  scene.add(plane);
+}
+
+// ---- Geometry ----
+const geometry = new THREE.IcosahedronGeometry(DICE_RADIUS, 0);
+geometry.clearGroups();
+for (let i = 0; i < 20; i++) {
+  geometry.addGroup(i * 3, 3, i);
+}
+
+// ---- Per-face normals (local space) for landing rotation targets ----
+const faceNormals = [];
+{
+  const positions = geometry.attributes.position;
+  const v0 = new THREE.Vector3();
+  const v1 = new THREE.Vector3();
+  const v2 = new THREE.Vector3();
+  const e1 = new THREE.Vector3();
+  const e2 = new THREE.Vector3();
+  for (let i = 0; i < 20; i++) {
+    v0.fromBufferAttribute(positions, i * 3);
+    v1.fromBufferAttribute(positions, i * 3 + 1);
+    v2.fromBufferAttribute(positions, i * 3 + 2);
+    e1.subVectors(v1, v0);
+    e2.subVectors(v2, v0);
+    faceNormals.push(new THREE.Vector3().crossVectors(e1, e2).normalize());
+  }
+}
+
+// ---- Per-face UV remap. The face that lands TOP-up (normal = +Y) is viewed
+// by the camera from the +Z side at a downward tilt, so the screen "up"
+// direction projects to roughly the −Z axis on the face. We pick the vertex
+// with the smallest Z (after the face is rotated to top-up) as the "top of
+// text", and the other two as bottom-left / bottom-right by their X. That
+// keeps "大凶/大吉" right-side-up when the dice settles. ----
+{
+  const positions = geometry.attributes.position;
+  const uvs = new Float32Array(60 * 2);
+  const tmpV = new THREE.Vector3();
+  const targetQ = new THREE.Quaternion();
+  const Y_AXIS = new THREE.Vector3(0, 1, 0);
+  // Equilateral UV triangle whose centroid is (0.5, 0.5) so canvas-center
+  // text ends up at the face's centroid. flipY is false → V=0 is canvas top.
+  const UV_TOP = [0.5, 0.05];
+  const UV_BL  = [0.11, 0.725];
+  const UV_BR  = [0.89, 0.725];
+
+  for (let i = 0; i < 20; i++) {
+    targetQ.setFromUnitVectors(faceNormals[i], Y_AXIS);
+
+    const view = [];
+    for (let j = 0; j < 3; j++) {
+      tmpV.fromBufferAttribute(positions, i * 3 + j).applyQuaternion(targetQ);
+      view.push({ idx: j, x: tmpV.x, z: tmpV.z });
+    }
+    // Smallest Z = farthest from camera = "top of text on screen"
+    view.sort((a, b) => a.z - b.z);
+    const topIdx = view[0].idx;
+    const bottoms = [view[1], view[2]].sort((a, b) => a.x - b.x);
+    const blIdx = bottoms[0].idx;
+    const brIdx = bottoms[1].idx;
+
+    const uvByLocal = [null, null, null];
+    uvByLocal[topIdx] = UV_TOP;
+    uvByLocal[blIdx]  = UV_BL;
+    uvByLocal[brIdx]  = UV_BR;
+    for (let j = 0; j < 3; j++) {
+      uvs[(i * 3 + j) * 2]     = uvByLocal[j][0];
+      uvs[(i * 3 + j) * 2 + 1] = uvByLocal[j][1];
+    }
+  }
+  geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+}
+
+// ---- Face textures: 大凶 on the hit face, 大吉 on the other 19. ----
+// Canvas is 512px so retina screens get crisp text; font is sized so the
+// text always fits inside the inscribed UV triangle (which is narrowest at
+// the top of the face).
+function makeFaceTexture(text, isHit) {
+  const SIZE = 512;
+  const canvas = document.createElement("canvas");
+  canvas.width = SIZE; canvas.height = SIZE;
+  const ctx = canvas.getContext("2d");
+
+  // Background gradient
+  const grad = ctx.createRadialGradient(SIZE/2, SIZE/2, 60, SIZE/2, SIZE/2, SIZE*0.7);
+  if (isHit) {
+    grad.addColorStop(0, "#ff3a48");
+    grad.addColorStop(0.55, "#a01018");
+    grad.addColorStop(1, "#3a0408");
+  } else {
+    grad.addColorStop(0, "#22202c");
+    grad.addColorStop(1, "#08060c");
+  }
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, SIZE, SIZE);
+
+  // Subtle inner border so faces have an "inscribed" frame look on the dice.
+  ctx.strokeStyle = isHit ? "rgba(255, 255, 255, 0.18)" : "rgba(255, 215, 110, 0.14)";
+  ctx.lineWidth = 6;
+  ctx.strokeRect(14, 14, SIZE - 28, SIZE - 28);
+
+  // Text — mincho serif for the omikuji feel.
+  // 100px is the largest that comfortably fits inside the inscribed triangle
+  // (≈210px wide at the text's vertical bounds), leaving margin for shadow.
+  ctx.font = `bold 100px "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", "Times New Roman", serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = isHit ? "#ffffff" : "#ffd76e";
+  ctx.shadowColor = isHit ? "rgba(255,90,90,0.85)" : "rgba(255,215,110,0.5)";
+  ctx.shadowBlur = isHit ? 22 : 8;
+  // Center on the canvas → centroid of the dice face.
+  ctx.fillText(text, SIZE / 2, SIZE / 2);
+  ctx.shadowBlur = 0;
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.flipY = false;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  return tex;
+}
+
+// ---- Materials per face ----
+const materials = [];
+for (let i = 0; i < 20; i++) {
+  const isHit = (i === HIT_FACE);
+  const tex = makeFaceTexture(isHit ? "大凶" : "大吉", isHit);
+  if (isHit) {
+    materials.push(new THREE.MeshPhysicalMaterial({
+      map: tex,
+      metalness: 0.30,
+      roughness: 0.32,
+      emissive: 0xff1020,
+      emissiveIntensity: 0.55,
+      clearcoat: 0.6,
+      clearcoatRoughness: 0.22,
+    }));
+  } else {
+    materials.push(new THREE.MeshPhysicalMaterial({
+      map: tex,
+      metalness: 0.78,
+      roughness: 0.38,
+      clearcoat: 0.5,
+      clearcoatRoughness: 0.28,
+    }));
+  }
+}
+
+const dice = new THREE.Mesh(geometry, materials);
+dice.castShadow = true;
+scene.add(dice);
+
+// Edge highlights (gives the icosahedron crisp facets even on dark faces)
+const edges = new THREE.EdgesGeometry(geometry);
+const edgeLines = new THREE.LineSegments(
+  edges,
+  new THREE.LineBasicMaterial({ color: 0x6a5a82, transparent: true, opacity: 0.5 })
+);
+dice.add(edgeLines);
+
+// Initial state: floating above the felt with the hit face slightly visible,
+// so the player learns what to watch out for.
+dice.position.set(0, 2.0, 0);
+{
+  const initialQuat = new THREE.Quaternion().setFromUnitVectors(
+    faceNormals[HIT_FACE],
+    new THREE.Vector3(0.35, 0.55, 0.75).normalize()
+  );
+  dice.quaternion.copy(initialQuat);
+}
+
+// ===========================================================
+// Roll animation: throw → tumble → land on plane
+// ===========================================================
+const ROLL_DURATION = 4200;
+const TUMBLE_TURNS = 26; // total tumble (in π radians) — much more violent
+let isRolling = false;
+let firstRollDone = false;
+let rollStart = 0;
+const startQuat = new THREE.Quaternion();
+const targetQuat = new THREE.Quaternion();
+const tumbleAxis1 = new THREE.Vector3();
+const tumbleAxis2 = new THREE.Vector3();
+const startPos = new THREE.Vector3();
+// Two lateral peak points so the dice flies one way, hits, then bounces
+// in a different direction before finally settling at center.
+const peak1 = new THREE.Vector3();
+const peak2 = new THREE.Vector3();
+let resultFace = -1;
+let onRollComplete = null;
+
+function rollDice(callback) {
+  if (isRolling) return;
+
+  // Pure 1/20 chance — picking a face directly is the simplest & fairest model
+  const result = Math.floor(Math.random() * 20);
+
+  startQuat.copy(dice.quaternion);
+  startPos.copy(dice.position);
+  // Result face's local normal must point at +Y when landed (face on TOP).
+  targetQuat.setFromUnitVectors(faceNormals[result], new THREE.Vector3(0, 1, 0));
+
+  // Two tumble axes — switched mid-roll so the spin direction visibly changes
+  // when the dice hits the plane, instead of one smooth fade.
+  const randAxis = (out) => out.set(
+    Math.random() - 0.5,
+    Math.random() - 0.5,
+    Math.random() - 0.5
+  ).normalize();
+  randAxis(tumbleAxis1);
+  randAxis(tumbleAxis2);
+
+  // Two lateral peak points — bounded so the dice stays inside the camera
+  // frustum at peak height. Each peak is on a different side so the second
+  // flight visibly redirects after the first impact.
+  const dir = Math.random() < 0.5 ? -1 : 1;
+  peak1.set(
+    dir * (0.45 + Math.random() * 0.25),   // [0.45, 0.70]
+    0,
+    (Math.random() - 0.5) * 0.30           // ±0.15
+  );
+  peak2.set(
+    -dir * (0.30 + Math.random() * 0.20),  // [0.30, 0.50]
+    0,
+    (Math.random() - 0.5) * 0.30           // ±0.15
+  );
+
+  rollStart = performance.now();
+  isRolling = true;
+  resultFace = result;
+  onRollComplete = callback;
+}
+
+function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+function easeOutQuad(t)  { return 1 - (1 - t) * (1 - t); }
+
+// Trajectory: throw → impact → second flight → impact → bounce → settle.
+// Two distinct plane impacts make the roll feel violent and physical.
+// Camera frustum tops out near y≈3.0 with the current setup, so peaks are
+// capped accordingly.
+function trajectoryY(t, startY) {
+  // Floor the peak at ~3.0 even when starting near the plane, so consecutive
+  // rolls feel equally violent. Capped so the apex stays inside the camera
+  // frustum (FOV 60° at distance ~5 from this top-down view).
+  const PEAK1 = Math.max(Math.min(startY + 0.9, 3.0), 2.8);
+  const PEAK2 = Y_GROUND + 1.3;                // bounce-up after first hit
+  if (t <= 0.18) {
+    const s = t / 0.18;                         // rise to PEAK1
+    return startY + (PEAK1 - startY) * easeOutQuad(s);
+  } else if (t <= 0.42) {
+    const s = (t - 0.18) / 0.24;                // fall to plane (impact 1)
+    return PEAK1 + (Y_GROUND - PEAK1) * (s * s);
+  } else if (t <= 0.58) {
+    const s = (t - 0.42) / 0.16;                // bounce up to PEAK2
+    return Y_GROUND + (PEAK2 - Y_GROUND) * easeOutQuad(s);
+  } else if (t <= 0.80) {
+    const s = (t - 0.58) / 0.22;                // fall to plane (impact 2)
+    return PEAK2 + (Y_GROUND - PEAK2) * (s * s);
+  } else if (t <= 0.90) {
+    const s = (t - 0.80) / 0.10;                // bounce 3 (small)
+    return Y_GROUND + 0.30 * 4 * s * (1 - s);
+  } else if (t <= 0.97) {
+    const s = (t - 0.90) / 0.07;                // bounce 4 (tiny)
+    return Y_GROUND + 0.10 * 4 * s * (1 - s);
+  }
+  return Y_GROUND;
+}
+
+// Lateral path: start → peak1 (mid first throw) → peak2 (mid second flight)
+// → center (final landing). Linear blends between keypoints, so the dice
+// visibly redirects after each plane impact.
+function trajectoryXZ(t, out) {
+  if (t <= 0.18) {
+    const s = t / 0.18;
+    out.x = startPos.x * (1 - s) + peak1.x * s;
+    out.z = startPos.z * (1 - s) + peak1.z * s;
+  } else if (t <= 0.50) {
+    // From first peak through impact 1 to the second peak
+    const s = (t - 0.18) / 0.32;
+    out.x = peak1.x * (1 - s) + peak2.x * s;
+    out.z = peak1.z * (1 - s) + peak2.z * s;
+  } else {
+    // From second peak, decelerate to center
+    const s = easeOutCubic(Math.min((t - 0.50) / 0.50, 1));
+    out.x = peak2.x * (1 - s);
+    out.z = peak2.z * (1 - s);
+  }
+}
+
+const tmpQuat = new THREE.Quaternion();
+const tumbleQuat = new THREE.Quaternion();
+const tmpAxis = new THREE.Vector3();
+const tmpXZ = new THREE.Vector3();
+
+function tick(now) {
+  requestAnimationFrame(tick);
+
+  // Skip work when the canvas is hidden (stake/result screen)
+  if (!stage.offsetParent && !isRolling) {
+    return;
+  }
+
+  if (isRolling) {
+    const t = Math.min((now - rollStart) / ROLL_DURATION, 1);
+    const eased = easeOutCubic(t);
+
+    // ---- Rotation: slerp + violently fading tumble around switching axis ----
+    tmpQuat.copy(startQuat).slerp(targetQuat, eased);
+    // Blend between the two tumble axes around t=0.42 (first impact)
+    const axisBlend = Math.min(Math.max((t - 0.30) / 0.30, 0), 1);
+    tmpAxis.copy(tumbleAxis1).lerp(tumbleAxis2, axisBlend).normalize();
+    const tumbleAngle = (1 - eased) * Math.PI * TUMBLE_TURNS;
+    tumbleQuat.setFromAxisAngle(tmpAxis, tumbleAngle);
+    dice.quaternion.copy(tmpQuat).multiply(tumbleQuat);
+
+    // ---- Position: multi-bounce throw ----
+    trajectoryXZ(t, tmpXZ);
+    dice.position.set(tmpXZ.x, trajectoryY(t, startPos.y), tmpXZ.z);
+
+    if (t >= 1) {
+      dice.position.set(0, Y_GROUND, 0);
+      dice.quaternion.copy(targetQuat);
+      isRolling = false;
+      firstRollDone = true;
+      if (onRollComplete) {
+        const cb = onRollComplete;
+        onRollComplete = null;
+        // Hold on the landed face for a beat so the player can read it
+        // before the result screen swaps in.
+        setTimeout(() => cb(resultFace === HIT_FACE, resultFace), 1000);
+      }
+    }
+  } else if (!firstRollDone) {
+    // Pre-first-roll: gentle float + slow tumble so the dice looks alive.
+    dice.position.y = 2.0 + Math.sin(now * 0.0012) * 0.08;
+    dice.rotation.y += 0.0035;
+    dice.rotation.x += 0.0014;
+  }
+  // After the first roll, dice rests still on the felt showing the result.
+
+  renderer.render(scene, camera);
+}
+
+function resize() {
+  const w = stage.clientWidth;
+  const h = stage.clientHeight;
+  if (w === 0 || h === 0) return;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener("resize", resize);
+resize();
+requestAnimationFrame(tick);
+
+// ===========================================================
+// UI flow
+// ===========================================================
+function showResult(isHit, faceIndex) {
+  const main = $("resultMain");
+  const jp = $("resultJp");
+  const detail = $("resultDetail");
+  if (isHit) {
+    main.textContent = `${stake}`;
+    main.className = "result-main drink";
+    jp.textContent = "杯 飲め！";
+    jp.className = "result-jp drink";
+    detail.innerHTML = `🍻 <b>大凶</b> が出ました — 賭けた <b>${stake} 杯</b> をどうぞ`;
+    if (navigator.vibrate) navigator.vibrate([90, 50, 90, 50, 220]);
+    fireFlash();
+  } else {
+    main.textContent = "SAFE";
+    main.className = "result-main safe";
+    jp.textContent = "セーフ";
+    jp.className = "result-jp safe";
+    detail.innerHTML = `<b>大吉</b> ＝ 飲まなくてOK (1/20の大凶を回避)`;
+    if (navigator.vibrate) navigator.vibrate(40);
+  }
+  showScreen("result");
+}
+
+function fireFlash() {
+  const f = $("flash");
+  f.classList.remove("fire");
+  void f.offsetWidth;
+  f.classList.add("fire");
+}
+
+document.querySelectorAll(".stake-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    stake = parseInt(btn.dataset.stake, 10);
+    $("stakeAmount").innerHTML = `${stake} <span class="cup-jp">杯</span>`;
+    $("rollBtn").disabled = false;
+    showScreen("roll");
+    // Re-fit canvas in case viewport changed while on the stake screen
+    requestAnimationFrame(resize);
+  });
+});
+
+$("rollBtn").addEventListener("click", () => {
+  $("rollBtn").disabled = true;
+  rollDice((isHit, faceIdx) => {
+    showResult(isHit, faceIdx);
+  });
+});
+
+$("backBtn").addEventListener("click", () => showScreen("stake"));
+
+$("againBtn").addEventListener("click", () => {
+  $("rollBtn").disabled = false;
+  showScreen("roll");
+  requestAnimationFrame(resize);
+});
+$("changeStakeBtn").addEventListener("click", () => showScreen("stake"));
+
+// Prevent double-tap zoom on iOS Safari
+document.addEventListener("gesturestart", e => e.preventDefault());
+</script>
+</body>
+</html>

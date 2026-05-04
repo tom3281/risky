@@ -1,0 +1,9 @@
+name = "risky-dice"
+main = "src/worker.js"
+compatibility_date = "2025-04-01"
+
+# Static asset bundling (the public/ folder is served as-is at the root path)
+[assets]
+directory = "./public"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
